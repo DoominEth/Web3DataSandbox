@@ -1,6 +1,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/jupyternotebooks,python,dotenv
 # Edit at https://www.toptal.com/developers/gitignore?templates=jupyternotebooks,python,dotenv
 
+#Ignore all xlsx files
+*.xlsx
+
 ### dotenv ###
 .env
 
