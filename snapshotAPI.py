@@ -152,6 +152,46 @@ class snapshotAPI:
         return volTimeDF
 
 
+    def getAllProposals(self,spaceName):
+        query = f"""query {{
+          proposals (
+            first: 1000,
+            skip: 0,
+            where: {{
+              space_in: ["{spaceName}"],
+              state: "closed"
+            }},
+            orderBy: "created",
+            orderDirection: desc
+          ) {{
+            id
+            title
+            start
+            end
+            snapshot
+            state
+            choices
+            scores
+            scores_updated
+          }}
+        }}
+        """
+        #scores_total
+        #choices
+        
+        result = self.runQuery(query)
+        return result['data']['proposals']
+        
+    #def getAllProposalDF(spaceName):
+        #data = self.getAllProposals(spaceName)
+        
+        #proposalDF = pd.DataFrame()
+        
+        #headers = data[0].keys()
+        
+        #for key in headers:
+            
+                   
         
     
     def getVotesDF(self, proposalID):
