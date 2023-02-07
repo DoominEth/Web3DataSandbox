@@ -13,7 +13,6 @@ class Node:
         
 
 class NodeOperations:
-    
     def __init__(self, web3, etherscan):
         self.web3 = web3
         self.etherscan = etherscan
