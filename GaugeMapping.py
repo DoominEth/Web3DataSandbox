@@ -11,6 +11,8 @@ from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
 
 
+import matplotlib.dates as mdates
+
 class GaugeMapping:
     def __init__(self, web3, etherscan, snapshot):
         self.web3 = web3
@@ -96,6 +98,24 @@ class GaugeMapping:
         allProposals = self.getAllSnapshotProposals(snapshotSpace)
         gaugeSnapshotData = self.getGaugeOnly(allProposals)
         return gaugeSnapshotData
+    
+    def getCurveOnly(self,allProps):
+        curveIndices = []
+        for i in range(len(allProps)):
+            if allProps.loc[i]['title'].split()[0] == '[Curve]':
+                curveIndices.append(i)
+            curveDataIndices = []
+            for index in curveIndices:
+                curveDataIndices.append(allProps.loc[index])
+
+            curveData = pd.DataFrame(curveDataIndices)
+            curveData = curveData.reset_index(drop = True)
+        return curveData
+    
+    def allCurveData(self, snapshotSpace):
+        allProposals = self.getAllSnapshotProposals(snapshotSpace)
+        curveSnapshotData = self.getCurveOnly(allProposals)
+        return curveSnapshotData
         
     def mapOldData(self, snapShotData, gaugeData, indexOfOldData):
         cols = ['Name','SnapshotIndex','GaugeControllerIndex','Votes']
@@ -184,6 +204,63 @@ class GaugeMapping:
             time = datetime(time.year,time.month,time.day)
             data.loc[i, 'DateTime'] = time.date()
         return data
+    
+    def UnixTimeToTimeDate2(self,data):
+        for i in range(len(data)):
+            time = datetime.fromtimestamp(data['end'][i], tz=None)
+            date_object = datetime(time.year, time.month, time.day)
+            data.loc[i, 'DateTime'] = date_object.strftime("%Y-%m-%d")
+        return data
+    
+    
+    def drawVoterParticipation(self, data):
+        
+        try:
+            data = data.sort_values(by='DateTime')
+
+            fig = plt.figure(figsize=(16, 8))
+            plt.bar(data['DateTime'], data['ScoresPercent'])
+            plt.xlabel('Date')
+            plt.ylabel('Percentage of TotalCVX Used')
+            plt.title('Voter Participation Per Proposal')
+            plt.xticks(rotation=90, ha='center')
+            plt.tight_layout()
+            plt.show()
+        except:
+            pass
+        
+
+    
+    def voterParticipationGauge(self,snapshotSpace, totalCVX):
+        gaugeSnapshot = self.allGaugeData(snapshotSpace)
+        gaugeSnapshot = self.UnixTimeToTimeDate2(gaugeSnapshot)
+        gaugeSnapshot = self.appendTotalCVX(gaugeSnapshot,totalCVX)
+        gaugeSnapshot = self.scoresPercentOfVote(gaugeSnapshot)
+        self.drawVoterParticipation(gaugeSnapshot)
+        return gaugeSnapshot
+    
+    def voterParticipationNonGauge(self,snapshotSpace, totalCVX):
+        curveSnapshot = self.allCurveData(snapshotSpace)
+        curveSnapshot = self.UnixTimeToTimeDate2(curveSnapshot)
+        curveSnapshot = self.appendTotalCVX(curveSnapshot,totalCVX)
+        curveSnapshot = self.scoresPercentOfVote(curveSnapshot)
+        self.drawVoterParticipation(curveSnapshot)
+        return curveSnapshot
+    
+    
+    def appendTotalCVX(self,data,cvxTotal):
+        for i in range(len(data)):
+            for j in range(len(cvxTotal)):
+                if data.loc[i,'DateTime'] == cvxTotal.loc[j,'time'][:10]:
+                    data.loc[i, 'totalCVX'] = cvxTotal.loc[j,'cvx_locked']
+        return data
+    
+    def scoresPercentOfVote(self,data):
+        data['scores'] = data['scores'].apply(sum)
+        #grouped_data = data.groupby('DateTime').sum()
+        data['ScoresPercent'] = data['scores'] / data['totalCVX'] * 100
+        return data
+    
     
     def bribePerProposal(self,mapData, bribeData):
         mapData['bribeValueUSD'] = 0
