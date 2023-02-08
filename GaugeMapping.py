@@ -4,6 +4,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import json
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.linear_model import LinearRegression
+from scipy.stats import pearsonr
 
 
 class GaugeMapping:
@@ -11,6 +16,8 @@ class GaugeMapping:
         self.web3 = web3
         self.etherscan = etherscan
         self.snapshot = snapshot
+        self.allMappingData =  pd.read_excel('OTHER_FINAL_DF.xlsx')
+        self.allMappingData['DateTime'] = self.allMappingData['DateTime'].dt.strftime('%Y-%m-%d')
     
     
     def buildAllGaugeInfo(self, gaugeAddress):
@@ -213,10 +220,11 @@ class GaugeMapping:
             mappingData.loc[i, 'bribe%'] = (mappingData.loc[i, 'bribeValueUSD'] / mappingData.loc[i, 'totalBribes']) * 100
             mappingData.loc[i, 'vote%'] = (mappingData.loc[i, 'Votes'] / mappingData.loc[i, 'totalVotes']) * 100    
 
-        return mappingData    
+        return mappingData
     
     def buildOldGaugeMapping(self, gaugeAddress, snapshotSpace, oldIndex, oldBribeData):
-        gMap = self.buildAllGaugeInfo(gaugeAddress)
+        #gMap = self.buildAllGaugeInfo(gaugeAddress)
+        gMap = pd.read_excel('gaugeMapTom.xlsx')
         snapshotData = self.allGaugeData(snapshotSpace)
         oldGMap = self.mapOldData(snapshotData, gMap,oldIndex)
         oldGMap = self.oldGaugeDataFill(snapshotData,oldGMap, oldIndex)
@@ -226,3 +234,284 @@ class GaugeMapping:
         totalBribes = self.totalBribes(oldGMap)
         oldGMap = self.addPercentages(oldGMap, totalBribes)
         return oldGMap
+    
+    
+    def mapNewData(self, snapshot, gaugeMap,newIndex):
+        cols = ['Name','SnapshotIndex','GaugeControllerIndex','Votes']
+        mappingDF = pd.DataFrame(columns = cols)
+        bIndex = 0
+                
+        for i in range(len(snapshot)):
+            #Where Curve changed his
+            if snapshot.loc[i]['id'] == "bafkreiepapq2rgoh4udx273ygz5lbgvg6ysnwva6kvz2rinj26lat7ilsm":
+                bIndex = i
+                scores = snapshot.loc[i, 'scores']
+                choice = snapshot.loc[i, 'choices']
+                for j in range(len(scores)):
+                    word = choice[j]
+                    mappingDF.loc[j,'Name'] = word
+                    mappingDF.loc[j,'SnapshotIndex'] = j 
+                    for k in range(len(gaugeMap)):
+                        try:
+                            poolAddress = gaugeMap.loc[k,'Pool']
+                            gaugeName = (poolAddress[:6] +  '…'+ poolAddress[-4:])
+                            if gaugeName.lower() in word.lower():
+                                mappingDF.loc[j,'GaugeControllerIndex'] = k
+                                mappingDF.loc[j,'Votes'] = scores[j]
+                                #print(str(j) + ':')
+
+                        except:
+                                mappingDF.loc[j,'SnapshotIndex'] = j 
+                                mappingDF.loc[j,'Votes'] = scores[j]
+                                #print('ERROR')
+                                pass
+        return mappingDF, bIndex
+    
+    
+    def newGaugeDataFill(self,newSnapshotData, mapData, gaugeControllerData, index):
+        cols = ['Name','SnapshotIndex','GaugeControllerIndex','Votes', 'UnixTime']
+        newDataFrame = pd.DataFrame(columns=cols)
+        currentIndex = 0
+
+        for i in range(0,index):
+            scores = newSnapshotData.loc[i, 'scores']
+            choice = newSnapshotData.loc[i, 'choices']
+            endUnixTime = newSnapshotData.loc[i,'end']
+
+            for j in range(len(scores)):       
+                newDataFrame.loc[currentIndex,'Votes'] = scores[j]
+                newDataFrame.loc[currentIndex,'SnapshotIndex'] = j
+                word = choice[j]
+
+
+                for k in range(len(mapData)):
+                    mapName = mapData.loc[k, 'Name']
+                    newDataFrame.loc[currentIndex,'Name'] = word
+                    #newDataFrame.loc[currentIndex,'SnapshotIndex'] = j
+                    newDataFrame.loc[currentIndex,'UnixTime'] = endUnixTime
+
+                    try:
+                        if word.lower()[:-1] in mapName.lower():
+                            newDataFrame.loc[currentIndex,'GaugeControllerIndex'] = mapData.loc[k,'GaugeControllerIndex']
+                            #newDataFrame.loc[currentIndex,'Votes'] = scores[j]
+                            break
+                        if(k ==len(mapData) - 1):
+                            for l in range(len(gaugeControllerData)):                            
+                                try:
+                                    if word.split()[1][1:-2].lower() ==gaugeControllerData.loc[l,'Pool'][:6].lower():
+                                        #print('New Address found (Non Beacon)')
+                                        newDataFrame.loc[currentIndex,'GaugeControllerIndex'] = l
+                                        #newDataFrame.loc[currentIndex,'Votes'] = scores[j]
+                                        #print(f'Index:{currentIndex}')
+                                except:
+                                    continue
+
+
+                    except:                    
+                        pass
+
+
+                currentIndex += 1
+
+        return newDataFrame
+    
+    
+    def newOtherChainData(self, mapData):
+        ftm = 1000
+        poly = 999
+        arbi = 998
+        ava = 997
+        op = 996
+        xdai = 995
+        veFunder = 994
+
+        for i in range(len(mapData)):
+            poolName = mapData['Name'][i]
+            if poolName[:4] == 'ftm-':
+                mapData['GaugeControllerIndex'][i] = ftm
+            elif poolName[:5] == 'poly-':
+                mapData['GaugeControllerIndex'][i] = poly
+            elif poolName[:5] == 'arbi-':
+                mapData['GaugeControllerIndex'][i] = arbi
+            elif poolName[:4] == 'ava-':
+                mapData['GaugeControllerIndex'][i] = ava
+            elif poolName[:3] == 'op-':
+                mapData['GaugeControllerIndex'][i] = op
+            elif poolName[:5] == 'xdai-':
+                mapData['GaugeControllerIndex'][i] = xdai
+            elif poolName[:9] == 'VeFunder-':
+                mapData['GaugeControllerIndex'][i] = veFunder
+            else:
+                pass
+        return mapData
+
+    
+    def buildNewGaugeMapping(self, gaugeAddress, snapshotSpace, newIndex, newBribeData):
+        #gMap = self.buildAllGaugeInfo(gaugeAddress)
+        gMap = pd.read_excel('gaugeMapTom.xlsx')
+        snapshotData = self.allGaugeData(snapshotSpace)
+        newGMap, index = self.mapNewData(snapshotData, gMap,newIndex)
+        newGMap = self.newGaugeDataFill(snapshotData, newGMap,gMap,index )
+        newGMap = self.newOtherChainData(newGMap) 
+        newGMap = self.UnixTimeToTimeDate(newGMap)
+        newGMap = self.bribePerProposal(newGMap, newBribeData)
+        newTotalBribes = self.totalBribes(newGMap)
+        newGMap = self.addPercentages(newGMap, newTotalBribes)
+        return newGMap
+    
+    
+    def differenceBetweenBribeAndVote(self,data):
+        for i in range(len(data)):
+            #if data.loc[i, 'vote%'] == 0 and  data.loc[i, 'bribe%'] == 0:
+            if data.loc[i, 'bribe%'] == 0:   
+                data.loc[i,'differenceFromBribe%'] = float('NaN')
+
+            else:
+                data.loc[i,'differenceFromBribe%'] = data.loc[i, 'vote%'] - data.loc[i, 'bribe%']
+
+        return data
+    
+    
+    
+    def drawHeatMap(self, dataframe):        
+        plt.figure(figsize=(30,10))
+        ax = sns.heatmap(data=dataframe, annot=False)
+        plt.tight_layout()
+        plt.show()
+    
+    
+    
+    def drawHeatMapDiffernceBetweenVotesBribes(self, dataFrame):
+        dataFrame = self.differenceBetweenBribeAndVote(dataFrame)
+
+        newPivot = dataFrame.pivot_table(index='DateTime', columns="GaugeControllerIndex", values='differenceFromBribe%')
+        bribe_sum = dataFrame.groupby("GaugeControllerIndex")["bribeValueUSD"].sum()
+
+        # Sort the bribe_sum in descending order
+        bribe_sum = bribe_sum.sort_values(ascending=False)
+
+        # Reorder the columns of the pivot table
+        newPivot = newPivot.reindex(columns=bribe_sum.index)
+
+        newPivot = newPivot.dropna(axis=1, how='all')
+
+        # Sort the rows by the index (dates) in ascending order
+        newPivot = newPivot.sort_index()
+
+        # Plot the heatmap
+        self.drawHeatMap(newPivot)
+
+        
+        
+    def drawVoteHeatMap(self,dataFrame):
+        newPivot = dataFrame.pivot_table(index='DateTime', columns="GaugeControllerIndex", values='vote%')
+        bribe_sum = dataFrame.groupby("GaugeControllerIndex")["bribeValueUSD"].sum()
+
+        # Sort the bribe_sum in descending order
+        bribe_sum = bribe_sum.sort_values(ascending=False)
+
+        # Reorder the columns of the pivot table
+        newPivot = newPivot.reindex(columns=bribe_sum.index)
+
+        newPivot = newPivot.dropna(axis=1, how='all')
+        
+        # Plot the heatmap
+        self.drawHeatMap(newPivot)
+
+        
+
+        
+    def drawBribeHeatMap(self,dataFrame):
+        newPivot = dataFrame.pivot_table(index='DateTime', columns="GaugeControllerIndex", values='bribe%')
+        bribe_sum = dataFrame.groupby("GaugeControllerIndex")["bribeValueUSD"].sum()
+
+        # Sort the bribe_sum in descending order
+        bribe_sum = bribe_sum.sort_values(ascending=False)
+
+        # Reorder the columns of the pivot table
+        newPivot = newPivot.reindex(columns=bribe_sum.index)
+
+        newPivot = newPivot.dropna(axis=1, how='all')
+
+        # Plot the heatmap
+        self.drawHeatMap(newPivot)
+
+        
+        
+    def getUniqueTimes(self, df):
+        unique_values = df['UnixTime'].unique()
+        return unique_values
+        
+    def drawLinearRegression(self, time, df, withNonBribed):
+        if withNonBribed:
+            df_filtered = df[(df['UnixTime'] == time) & (df['bribe%'] > 0)]
+        else:
+            df_filtered = df[(df['UnixTime'] == time) ]
+
+        x = df_filtered['bribe%'].values
+        y = df_filtered['vote%'].values
+
+        model = LinearRegression()
+        model.fit(x[:, np.newaxis], y[:, np.newaxis])
+
+        #coefficient = model.coef_[0][0]
+        
+        #x = df['bribe%'].values
+        #y = df['vote%'].values
+        correlation_coefficient = np.corrcoef(x, y)[0, 1]
+        
+        
+        date = datetime.fromtimestamp(time).strftime('%Y-%m-%d')
+
+        x_new = np.linspace(0, 20, 30, 40,50)
+        y_new = np.linspace(0, 20, 30, 40,50)
+        plt.figure(figsize=(10, 10))
+        ax = plt.axes()
+        ax.scatter(x, y)
+        ax.plot(40,40)
+        ax.set_xlabel('Bribe %')
+        ax.set_ylabel('Vote %')
+        ax.axis('tight')
+        ax.set_title(f'Correlation Coefficient at Time {date}: {correlation_coefficient:.2f}')
+        plt.show()
+    
+    
+    def drawAllCorolationOneChart(self, df, withNonBribed):
+        
+        if withNonBribed:
+            df_filtered = df[df['bribe%'] > 0]
+        else:
+            df_filtered = df
+
+        
+        x = df_filtered['bribe%'].values
+        y = df_filtered['vote%'].values
+        
+        correlation_coefficient = np.corrcoef(x, y)[0, 1]
+        
+        model = LinearRegression()
+        model.fit(x[:, np.newaxis], y[:, np.newaxis])
+
+        #coefficient = model.coef_[0][0]
+                
+
+        x_new = np.linspace(0, 20, 30, 40,50)
+        y_new = np.linspace(0, 20, 30, 40,50)
+        plt.figure(figsize=(10, 10))
+        ax = plt.axes()
+        ax.scatter(x, y)
+        ax.plot(40,40)
+        ax.set_xlabel('Bribe %')
+        ax.set_ylabel('Vote %')
+        ax.axis('tight')
+        ax.set_title(f'Overall Correlation Coefficient - {correlation_coefficient:.2f}')
+        plt.show()
+    
+    def drawAllGaugeProposalCorolation(self, df, withNonBribed):
+        uniquePropTimes = self.getUniqueTimes(df)
+        
+        for time in uniquePropTimes:
+            self.drawLinearRegression(time,df,withNonBribed )
+            
+            
+           
