@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
-
+import warnings
+warnings.filterwarnings("ignore")
 
 import matplotlib.dates as mdates
 
@@ -596,8 +597,9 @@ class GaugeMapping:
         ax.set_xlabel('Bribe %')
         ax.set_ylabel('Vote %')
         ax.axis('tight')
-        ax.set_title(f'Correlation Coefficient at Time {date}: {correlation_coefficient:.2f}')
+        ax.set_title(f'Correlation Coefficient at Time {date}: {correlation_coefficient:.6f}')
         plt.show()
+        return correlation_coefficient, date
     
     
     def drawAllCorolationOneChart(self, df, withNonBribed):
@@ -628,14 +630,22 @@ class GaugeMapping:
         ax.set_xlabel('Bribe %')
         ax.set_ylabel('Vote %')
         ax.axis('tight')
-        ax.set_title(f'Overall Correlation Coefficient - {correlation_coefficient:.2f}')
+        ax.set_title(f'Overall Correlation Coefficient - {correlation_coefficient:.6f}')
         plt.show()
     
-    def drawAllGaugeProposalCorolation(self, df, withNonBribed):
+    def drawAllGaugeProposalCorolation(self, df, withNonBribed, amountOfProposals=-1):
+        coefMapping = pd.DataFrame()
+        i=0
         uniquePropTimes = self.getUniqueTimes(df)
         
-        for time in uniquePropTimes:
-            self.drawLinearRegression(time,df,withNonBribed )
+        if (amountOfProposals == -1):
+            amountOfProposals = len(-uniquePropTimes)
+        
+        for time in uniquePropTimes[-amountOfProposals:]:
+            coefMapping.loc[i, 'coefficient'],coefMapping.loc[i, 'time']  = self.drawLinearRegression(time,df,withNonBribed)
+            i += 1
+            
+        return coefMapping
             
             
            

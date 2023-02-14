@@ -81,6 +81,25 @@ class snapshotAPI:
 
         return proposalDF
     
+    
+    def getVotingPower(self,snapshotSpace,proposalID,voterAddress):
+        query= f"""query {{
+              vp (
+                voter: "{voterAddress}"
+                space: "{snapshotSpace}"
+                proposal: "{proposalID}"
+              ) {{
+                vp
+                vp_by_strategy
+                vp_state
+              }} 
+            }}"""
+        
+        result = self.runQuery(query)
+        return result
+        
+
+    
         
     def getVotes(self, proposalID, skip=0):
         query = f"""query {{
