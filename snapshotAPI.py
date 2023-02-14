@@ -82,11 +82,11 @@ class snapshotAPI:
         return proposalDF
     
         
-    def getVotes(self, proposalID):
+    def getVotes(self, proposalID, skip=0):
         query = f"""query {{
           votes (
-            first: 100000
-            skip: 0
+            first: 1000
+            skip: {skip}
             where: {{
               proposal: "{proposalID}"
             }}

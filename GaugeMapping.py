@@ -102,7 +102,7 @@ class GaugeMapping:
     def getCurveOnly(self,allProps):
         curveIndices = []
         for i in range(len(allProps)):
-            if allProps.loc[i]['title'].split()[0] == '[Curve]':
+            if allProps.loc[i]['title'].split()[0] == '[Curve]' or allProps.loc[i]['title'].split()[0] == 'Curve':
                 curveIndices.append(i)
             curveDataIndices = []
             for index in curveIndices:
@@ -212,28 +212,46 @@ class GaugeMapping:
             data.loc[i, 'DateTime'] = date_object.strftime("%Y-%m-%d")
         return data
     
+    def UnixTimeToTimeDateStart(self,data):
+        for i in range(len(data)):
+            time = datetime.fromtimestamp(data['start'][i], tz=None)
+            date_object = datetime(time.year, time.month, time.day)
+            data.loc[i, 'DateTimeStart'] = date_object.strftime("%Y-%m-%d")
+        return data
+    
     
     def drawVoterParticipation(self, data):
         
-        try:
-            data = data.sort_values(by='DateTime')
 
-            fig = plt.figure(figsize=(16, 8))
-            plt.bar(data['DateTime'], data['ScoresPercent'])
-            plt.xlabel('Date')
-            plt.ylabel('Percentage of TotalCVX Used')
-            plt.title('Voter Participation Per Proposal')
-            plt.xticks(rotation=90, ha='center')
-            plt.tight_layout()
-            plt.show()
-        except:
-            pass
+        data = data.sort_values(by='DateTimeStart')
+
+        fig = plt.figure(figsize=(16, 8))
+        plt.bar(data['DateTimeStart'], data['ScoresPercent'])
+        plt.xlabel('Date')
+        plt.ylabel('Percentage of TotalCVX Used')
+        plt.title('Voter Participation Per Proposal')
+        plt.xticks(rotation=90, ha='center')
+        plt.tight_layout()
+        plt.show()
+
         
+    def amountOfVoters(self,propId):
+        allVotes = self.snapshot.getVotes(propId)
+        amountOfVotes = len(allVotes['data']['votes'])
+        #if amountOfVotes == 1000:
+            
+        return len(allVotes['data']['votes'])
+    
+    def appendAmountOfVoters(self, snapshotData):
+        for i in range(len(snapshotData)):
+            snapshotData.loc[i,'NoOfVoters'] = self.amountOfVoters(snapshotData.loc[i,'id'])
+        return snapshotData
+            
 
     
     def voterParticipationGauge(self,snapshotSpace, totalCVX):
         gaugeSnapshot = self.allGaugeData(snapshotSpace)
-        gaugeSnapshot = self.UnixTimeToTimeDate2(gaugeSnapshot)
+        gaugeSnapshot = self.UnixTimeToTimeDateStart(gaugeSnapshot)
         gaugeSnapshot = self.appendTotalCVX(gaugeSnapshot,totalCVX)
         gaugeSnapshot = self.scoresPercentOfVote(gaugeSnapshot)
         self.drawVoterParticipation(gaugeSnapshot)
@@ -241,17 +259,45 @@ class GaugeMapping:
     
     def voterParticipationNonGauge(self,snapshotSpace, totalCVX):
         curveSnapshot = self.allCurveData(snapshotSpace)
-        curveSnapshot = self.UnixTimeToTimeDate2(curveSnapshot)
+        curveSnapshot = self.UnixTimeToTimeDateStart(curveSnapshot)
         curveSnapshot = self.appendTotalCVX(curveSnapshot,totalCVX)
         curveSnapshot = self.scoresPercentOfVote(curveSnapshot)
         self.drawVoterParticipation(curveSnapshot)
         return curveSnapshot
     
+    def getConvexOnly(self,allProps):
+        convexIndices = []
+        for i in range(len(allProps)):
+            if allProps.loc[i]['title'].split()[0] == '[Convex]' or allProps.loc[i]['title'].split()[0] == 'Convex':
+                convexIndices.append(i)
+            convexDataIndices = []
+            for index in convexIndices:
+                convexDataIndices.append(allProps.loc[index])
+
+            convexData = pd.DataFrame(convexDataIndices)
+            convexData = convexData.reset_index(drop = True)
+        return convexData
+    
+    
+    
+    def allConvexData(self,snapshotSpace):
+        allProposals = self.getAllSnapshotProposals(snapshotSpace)
+        convexSnapshotData = self.getConvexOnly(allProposals)
+        return convexSnapshotData    
+    
+    
+    def voterParticipationConvexOnly(self,snapshotSpace, totalCVX):
+        convexSnapshot = self.allConvexData(snapshotSpace)
+        convexSnapshot = self.UnixTimeToTimeDateStart(convexSnapshot)
+        convexSnapshot = self.appendTotalCVX(convexSnapshot,totalCVX)
+        convexSnapshot = self.scoresPercentOfVote(convexSnapshot)
+        self.drawVoterParticipation(convexSnapshot)
+        return convexSnapshot
     
     def appendTotalCVX(self,data,cvxTotal):
         for i in range(len(data)):
             for j in range(len(cvxTotal)):
-                if data.loc[i,'DateTime'] == cvxTotal.loc[j,'time'][:10]:
+                if data.loc[i,'DateTimeStart'] == cvxTotal.loc[j,'time'][:10]:
                     data.loc[i, 'totalCVX'] = cvxTotal.loc[j,'cvx_locked']
         return data
     
@@ -442,6 +488,7 @@ class GaugeMapping:
             #if data.loc[i, 'vote%'] == 0 and  data.loc[i, 'bribe%'] == 0:
             if data.loc[i, 'bribe%'] == 0:   
                 data.loc[i,'differenceFromBribe%'] = float('NaN')
+                #data.loc[i,'differenceFromBribe%'] = data.loc[i, 'vote%']
 
             else:
                 data.loc[i,'differenceFromBribe%'] = data.loc[i, 'vote%'] - data.loc[i, 'bribe%']
