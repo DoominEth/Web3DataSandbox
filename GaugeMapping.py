@@ -252,6 +252,7 @@ class GaugeMapping:
     
     def voterParticipationGauge(self,snapshotSpace, totalCVX):
         gaugeSnapshot = self.allGaugeData(snapshotSpace)
+        gaugeSnapshot = self.UnixTimeToTimeDate2(gaugeSnapshot)
         gaugeSnapshot = self.UnixTimeToTimeDateStart(gaugeSnapshot)
         gaugeSnapshot = self.appendTotalCVX(gaugeSnapshot,totalCVX)
         gaugeSnapshot = self.scoresPercentOfVote(gaugeSnapshot)
@@ -602,7 +603,89 @@ class GaugeMapping:
         return correlation_coefficient, date
     
     
-    def drawAllCorolationOneChart(self, df, withNonBribed):
+    
+    def drawAllCorolationOneChart(self, df, withNonBribed, N, ):
+        
+        # Filter the data based on whether to include non-bribed data or not
+        if withNonBribed:
+            df_filtered = df[df['bribe%'] > 0]
+        else:
+            df_filtered = df
+
+            
+        if N > 0:
+            # Select the first N timestamps from the dataframe
+            first_N_timestamps = df_filtered['UnixTime'].unique()[:N]
+        else:
+            # Select the first N timestamps from the dataframe
+            first_N_timestamps = df_filtered['UnixTime'].unique()[N:]
+
+        # Filter the data based on the selected timestamps
+        df_filtered = df_filtered[df_filtered['UnixTime'].isin(first_N_timestamps)]
+        
+  
+
+        x = df_filtered['bribe%'].values
+        y = df_filtered['vote%'].values
+
+        correlation_coefficient = np.corrcoef(x, y)[0, 1]
+
+        model = LinearRegression()
+        model.fit(x[:, np.newaxis], y[:, np.newaxis])
+
+        #coefficient = model.coef_[0][0]
+
+
+        x_new = np.linspace(0, 20, 30, 40,50)
+        y_new = np.linspace(0, 20, 30, 40,50)
+        plt.figure(figsize=(10, 10))
+        ax = plt.axes()
+        ax.scatter(x, y)
+        ax.plot(40,40)
+        ax.set_xlabel('Bribe %')
+        ax.set_ylabel('Vote %')
+        ax.axis('tight')
+        ax.set_title(f'Overall Correlation Coefficient - {correlation_coefficient:.6f}')
+        plt.show()
+
+        
+    def drawCorrelationByN(self, df, N):
+        if N == 0:
+            return
+
+        df_sorted = df.sort_values(by='UnixTime')
+
+        if N > 0:
+            df_grouped = df_sorted.groupby('UnixTime').head(N)
+        else:
+            df_grouped = df_sorted.groupby('UnixTime').tail(-N)
+
+        x = df_grouped['bribe%'].values
+        y = df_grouped['vote%'].values
+
+        correlation_coefficient = np.corrcoef(x, y)[0, 1]
+
+        model = LinearRegression()
+        model.fit(x[:, np.newaxis], y[:, np.newaxis])
+
+        x_new = np.linspace(0, 20, 30, 40, 50)
+        y_new = np.linspace(0, 20, 30, 40, 50)
+
+        plt.figure(figsize=(10, 10))
+        ax = plt.axes()
+        ax.scatter(x, y)
+        ax.plot(40, 40)
+        ax.set_xlabel('Bribe %')
+        ax.set_ylabel('Vote %')
+        ax.axis('tight')
+        ax.set_title(f'Overall Correlation Coefficient - {correlation_coefficient:.6f}')
+        plt.show()
+
+        
+        
+    
+    
+    def drawAllCorolationOneChart1(self, df, withNonBribed):
         
         if withNonBribed:
             df_filtered = df[df['bribe%'] > 0]
