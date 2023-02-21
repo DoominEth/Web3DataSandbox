@@ -7,6 +7,8 @@ import pandas as pd
 import requests
 import json
 import datetime
+import time
+
 
 class snapshotAPI:
     def __init__(self):
@@ -102,6 +104,7 @@ class snapshotAPI:
     
         
     def getVotes(self, proposalID, skip=0):
+        time.sleep(2)
         query = f"""query {{
           votes (
             first: 1000
@@ -201,20 +204,18 @@ class snapshotAPI:
         result = self.runQuery(query)
         return result['data']['proposals']
         
-    #def getAllProposalDF(spaceName):
-        #data = self.getAllProposals(spaceName)
+    def getAllProposalDF(self,spaceName):
+        data = self.getAllProposals(spaceName)
         
-        #proposalDF = pd.DataFrame()
-        
-        #headers = data[0].keys()
-        
-        #for key in headers:
+        proposalDF = pd.DataFrame(data=data)
+        return proposalDF
             
                    
         
     
     def getVotesDF(self, proposalID):
         
+   
         data = self.getVotes(proposalID)
         
         headers = []
@@ -243,7 +244,7 @@ class snapshotAPI:
                 totalDispersed = (sum(list(data['data']['votes'][i]['choice'].values())))
                 voteDF.loc[i][(len(headers) -1) + int(list(data['data']['votes'][i]['choice'].keys())[j])] =  ((list(data['data']['votes'][i]['choice'].values())[j]) / totalDispersed) * data['data']['votes'][i]['vp']
         
-      
+        
         
         return voteDF
 

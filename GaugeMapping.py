@@ -19,11 +19,13 @@ class GaugeMapping:
         self.web3 = web3
         self.etherscan = etherscan
         self.snapshot = snapshot
-        self.allMappingData =  pd.read_excel('OTHER_FINAL_DF.xlsx')
-        self.allMappingData['DateTime'] = self.allMappingData['DateTime'].dt.strftime('%Y-%m-%d')
+        self.allMappingData =  pd.read_excel('299223All_Mapping_Data.xlsx')
+        #self.allMappingData =  pd.read_excel('OTHER_FINAL_DF.xlsx')
+        #self.allMappingData['DateTime'] = self.allMappingData['DateTime'].dt.strftime('%Y-%m-%d')
+        #self.old_data_for_unkown_gauges = pd.read_excel('OLD_DATA_FOR_UNKOWN_GAUGES.xlsx')
     
     
-    def buildAllGaugeInfo(self, gaugeAddress):
+    def buildAllGaugeInfo(self, gaugeAddress, save):
     #mapping DF
         gaugeMappingDF = pd.DataFrame()
 
@@ -73,6 +75,8 @@ class GaugeMapping:
             except:            
                 #print(f'{counter}. missing information for Gauge {i}: {gaugeAddr}')
                 counter += 1
+        if save:
+            gaugeMappingDF.to_excel('gaugeMappingSpreadSheet.xlsx')
 
         return gaugeMappingDF
     
@@ -139,7 +143,7 @@ class GaugeMapping:
         newDataFrame = pd.DataFrame(columns=cols)
         currentIndex = 0
     
-        for i in range(indexOfOldData,len(oldSnapshotData)):
+        for i in range(indexOfOldData,len(oldSnapshotData) ):
             scores = oldSnapshotData.loc[i, 'scores']
             choice = oldSnapshotData.loc[i, 'choices']
             endUnixTime = oldSnapshotData.loc[i,'end']
@@ -191,11 +195,14 @@ class GaugeMapping:
                 elif data.loc[i, 'Name'][:5] == 'xdai-':
                     data.loc[i, 'GaugeControllerIndex'] = xdai
                     continue
-                elif data.loc[i, 'Name'][:6] =='VeFunde':
+                elif data.loc[i, 'Name'][:6] =='VeFund':
                     data.loc[i, 'GaugeControllerIndex'] = veFunder
                     continue
                 elif data.loc[i, 'Name'][:7] == 'avalanc':
                     data.loc[i, 'GaugeControllerIndex'] = ava
+                elif data.loc[i, 'Name'][:7] == 'harmony':
+                        data.loc[i, 'GaugeControllerIndex']  = Harmony
+                else:
                     continue
         return data
     
@@ -347,12 +354,29 @@ class GaugeMapping:
 
         return mappingData
     
+    
+    def hardCodedDataFill(self, data):
+        for i in range(len(data)):
+            name = data.loc[i, 'Name']
+            
+            for j in range(len(self.old_data_for_unkown_gauges)):
+                hardCodeName = self.old_data_for_unkown_gauges.loc[j, 'Name']
+                if name == hardCodeName:
+                    data.loc[i, 'GaugeControllerIndex'] = self.old_data_for_unkown_gauges.loc[j, 'GaugeIndex']
+                    
+        return data
+        
+    
     def buildOldGaugeMapping(self, gaugeAddress, snapshotSpace, oldIndex, oldBribeData):
         #gMap = self.buildAllGaugeInfo(gaugeAddress)
-        gMap = pd.read_excel('gaugeMapTom.xlsx')
+        gMap = pd.read_excel('gaugeMappingSpreadSheet.xlsx')
         snapshotData = self.allGaugeData(snapshotSpace)
         oldGMap = self.mapOldData(snapshotData, gMap,oldIndex)
         oldGMap = self.oldGaugeDataFill(snapshotData,oldGMap, oldIndex)
+        
+        oldGMap = self.hardCodedDataFill(oldGMap)
+        
+        
         oldGMap = self.oldGaugeCrossChain(oldGMap)
         oldGMap = self.UnixTimeToTimeDate(oldGMap)
         oldGMap = self.bribePerProposal(oldGMap, oldBribeData)
@@ -473,7 +497,7 @@ class GaugeMapping:
     
     def buildNewGaugeMapping(self, gaugeAddress, snapshotSpace, newIndex, newBribeData):
         #gMap = self.buildAllGaugeInfo(gaugeAddress)
-        gMap = pd.read_excel('gaugeMapTom.xlsx')
+        gMap = pd.read_excel('gaugeMappingSpreadSheet.xlsx')
         snapshotData = self.allGaugeData(snapshotSpace)
         newGMap, index = self.mapNewData(snapshotData, gMap,newIndex)
         newGMap = self.newGaugeDataFill(snapshotData, newGMap,gMap,index )
@@ -506,9 +530,24 @@ class GaugeMapping:
         plt.show()
     
     
+    def drawHeatMap2(self, dataframe, startIndex):
+        
+        unique_times = dataframe.index.unique()
+        filtered_times = unique_times[startIndex:]
+        filtered_dataframe = dataframe[dataframe.index.isin(filtered_times)]
+
+        plt.figure(figsize=(30,10))
+        ax = sns.heatmap(data=filtered_dataframe, annot=False)
+        plt.tight_layout()
+        plt.show()
     
-    def drawHeatMapDiffernceBetweenVotesBribes(self, dataFrame):
+    
+    
+    def drawHeatMapDiffernceBetweenVotesBribes(self, dataFrame,startIndex= 0):
+        
+        
         dataFrame = self.differenceBetweenBribeAndVote(dataFrame)
+        dataFrame['DateTime'] = pd.to_datetime(dataFrame['DateTime']).dt.date
 
         newPivot = dataFrame.pivot_table(index='DateTime', columns="GaugeControllerIndex", values='differenceFromBribe%')
         bribe_sum = dataFrame.groupby("GaugeControllerIndex")["bribeValueUSD"].sum()
@@ -525,7 +564,7 @@ class GaugeMapping:
         newPivot = newPivot.sort_index()
 
         # Plot the heatmap
-        self.drawHeatMap(newPivot)
+        self.drawHeatMap2(newPivot,startIndex)
 
         
         
