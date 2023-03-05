@@ -23,6 +23,18 @@ class snapshotAPI:
             raise Exception(f"Unexpected status code returned: {request.status_code}")
             
     
+    def getNumberOfVotes(self,proposalId):
+            query = f"""query Proposal {{
+            proposal(id:"{proposalId}") {{
+            id
+            votes
+            title
+            }}
+            }}"""
+
+            result = self.runQuery(query)['data']['proposal']['votes']
+            return result
+    
     def getProposal(self, proposalID):
         query = f"""query {{
           proposals (

@@ -85,6 +85,50 @@ class GaugeMapping:
         dataDF = pd.DataFrame(allProposals)
         return dataDF
         
+        
+        
+    def getTempCheckOnly(self,allProps):
+        tempIndices = []
+        for i in range(len(allProps)):
+            if allProps.loc[i]['title'].split()[0] == '[Temperature' or allProps.loc[i]['title'].split()[0][:4].lower() =='Temp'.lower():
+                tempIndices.append(i)
+            tempDataIndices = []
+            for index in tempIndices:
+                tempDataIndices.append(allProps.loc[index])
+
+            tempData = pd.DataFrame(tempDataIndices)
+            tempData = tempData.reset_index(drop = True)
+
+        return tempData
+    
+    def getConsenCheckOnly(self,allProps):
+        concenIndices = []
+        for i in range(len(allProps)):
+            if allProps.loc[i]['title'].split()[0] == '[Consensus' or allProps.loc[i]['title'].split()[0][:4].lower() =='Cons'.lower():
+                concenIndices.append(i)
+            concDataIndices = []
+            for index in concenIndices:
+                concDataIndices.append(allProps.loc[index])
+
+            concData = pd.DataFrame(concDataIndices)
+            concData = concData.reset_index(drop = True)
+
+        return concData
+    
+    def getNonTempNonConOnly(self,allProps):
+        concenIndices = []
+        for i in range(len(allProps)):
+            if allProps.loc[i]['title'].split()[0] != '[Consensus' and allProps.loc[i]['title'].split()[0] != '[Temperature' and allProps.loc[i]['title'].split()[0][:4].lower() !='Cons'.lower() and  allProps.loc[i]['title'].split()[0][:4].lower() =='Temp'.lower():
+                concenIndices.append(i)
+            concDataIndices = []
+            for index in concenIndices:
+                concDataIndices.append(allProps.loc[index])
+
+            concData = pd.DataFrame(concDataIndices)
+            concData = concData.reset_index(drop = True)
+
+        return concData
+    
     def getGaugeOnly(self,allProps):
         gaugeIndices = []
         for i in range(len(allProps)):
@@ -238,7 +282,7 @@ class GaugeMapping:
         plt.xlabel('Date')
         plt.ylabel('Percentage of TotalCVX Used')
         plt.title('Voter Participation Per Proposal')
-        plt.xticks(rotation=90, ha='center')
+        plt.xticks(rotation=45, ha='center')
         plt.tight_layout()
         plt.show()
 
@@ -512,12 +556,12 @@ class GaugeMapping:
     def differenceBetweenBribeAndVote(self,data):
         for i in range(len(data)):
             #if data.loc[i, 'vote%'] == 0 and  data.loc[i, 'bribe%'] == 0:
-            if data.loc[i, 'bribe%'] == 0:   
-                data.loc[i,'differenceFromBribe%'] = float('NaN')
+            #if data.loc[i, 'bribe%'] == 0:   
+            #    data.loc[i,'differenceFromBribe%'] = float('NaN')
                 #data.loc[i,'differenceFromBribe%'] = data.loc[i, 'vote%']
 
-            else:
-                data.loc[i,'differenceFromBribe%'] = data.loc[i, 'vote%'] - data.loc[i, 'bribe%']
+            #else:
+            data.loc[i,'differenceFromBribe%'] = data.loc[i, 'vote%'] - data.loc[i, 'bribe%']
 
         return data
     
@@ -540,6 +584,40 @@ class GaugeMapping:
         ax = sns.heatmap(data=filtered_dataframe, annot=False)
         plt.tight_layout()
         plt.show()
+    
+    
+    
+    def differenceBetweenBribeAndVoteFraction(self,data):
+        for i in range(len(data)):
+            #if data.loc[i, 'vote%'] == 0 and  data.loc[i, 'bribe%'] == 0:
+            if data.loc[i, 'bribe%'] != 0:
+                data.loc[i,'differenceFromBribeFraction'] =   (data.loc[i, 'vote%'] / data.loc[i, 'bribe%'])
+
+        return data
+    
+    
+    
+    def drawHeatMapDiffernceBetweenVotesBribesAsFraction(self, dataFrame,startIndex= 0):
+
+        dataFrame = self.differenceBetweenBribeAndVoteFraction(dataFrame)
+        dataFrame['DateTime'] = pd.to_datetime(dataFrame['DateTime']).dt.date
+
+        newPivot = dataFrame.pivot_table(index='DateTime', columns="GaugeControllerIndex", values='differenceFromBribeFraction')
+        bribe_sum = dataFrame.groupby("GaugeControllerIndex")["bribeValueUSD"].sum()
+
+        # Sort the bribe_sum in descending order
+        bribe_sum = bribe_sum.sort_values(ascending=False)
+
+        # Reorder the columns of the pivot table
+        newPivot = newPivot.reindex(columns=bribe_sum.index)
+
+        newPivot = newPivot.dropna(axis=1, how='all')
+
+        # Sort the rows by the index (dates) in ascending order
+        newPivot = newPivot.sort_index()
+
+        # Plot the heatmap
+        self.drawHeatMap2(newPivot,startIndex)
     
     
     
